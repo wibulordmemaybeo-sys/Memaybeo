@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Vật Lý Song Hành - Prototype</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+        canvas {
+            background-color: #1e1e1e;
+            border: 2px solid #555;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #ff4757;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button.active { background-color: #2ed573; }
+        .instructions { max-width: 600px; text-align: center; color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <h2>Vật Lý Song Hành: Bài test Laser & Lượng Tử</h2>
+    <p class="instructions">
+        <strong>Nhiệm vụ:</strong> Chiếu laser (Xanh) vào Mục tiêu (Xanh lá).<br>
+        1. Nhấp chuột vào Canvas để xoay gương.<br>
+        2. Bấm nút dưới đây để mượn "Đường hầm Lượng tử" đi xuyên tường.
+    </p>
+    
+    <button id="quantumBtn">Đường hầm Lượng tử: ĐANG TẮT</button>
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const btn = document.getElementById('quantumBtn');
+
+        // Trạng thái thế giới
+        let quantumTunnelActive = false;
+        let mirrorAngle = 0; // Góc của gương
+
+        // Nút kích hoạt lượng tử
+        btn.onclick = () => {
+            quantumTunnelActive = !quantumTunnelActive;
+            btn.innerText = `Đường hầm Lượng tử: ${quantumTunnelActive ? 'ĐANG BẬT' : 'ĐANG TẮT'}`;
+            btn.className = quantumTunnelActive ? 'active' : '';
+        };
+
+        // Click để xoay gương (Vật lý cổ điển)
+        canvas.onclick = () => {
+            mirrorAngle += Math.PI / 8; // Xoay 22.5 độ mỗi lần bấm
+        };
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Vẽ Nguồn Laser
+            ctx.fillStyle = '#00d2d3';
+            ctx.fillRect(20, 190, 20, 20);
+            ctx.fillText("Nguồn", 15, 180);
+
+            // 2. Vẽ Mục tiêu
+            ctx.fillStyle = '#10ac84';
+            ctx.fillRect(300, 40, 40, 40);
+            ctx.fillText("Mục tiêu", 295, 30);
+
+            // 3. Vẽ Bức tường (Vật cản)
+            ctx.fillStyle = quantumTunnelActive ? 'rgba(255, 107, 107, 0.3)' : '#ff6b6b';
+            ctx.fillRect(250, 80, 140, 20); // Tường nằm ngang chắn mục tiêu
+
+            // 4. Vẽ Gương
+            const mx = 320, my = 200, mLen = 80;
+            ctx.save();
+            ctx.translate(mx, my);
+            ctx.rotate(mirrorAngle);
+            
+            // Mặt gương
+            ctx.strokeStyle = '#c8d6e5';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(-mLen/2, 0);
+            ctx.lineTo(mLen/2, 0);
+            ctx.stroke();
+            
+            // Trục pháp tuyến (hướng phản xạ)
+            ctx.strokeStyle = 'rgba(255, 234, 167, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, -30);
+            ctx.stroke();
+            ctx.restore();
+
+            // 5. Mô phỏng vật lý: Bắn Tia Laser (Raycasting)
+            let rx = 40, ry = 200; // Vị trí bắt đầu của tia
+            let dx = 1, dy = 0;    // Hướng bay ban đầu (sang phải)
+            let reflected = false;
+            let hitTarget = false;
+
+            ctx.beginPath();
+            ctx.moveTo(rx, ry);
+            ctx.strokeStyle = '#00d2d3';
+            ctx.lineWidth = 3;
+
+            // Chạy từng bước nhỏ để kiểm tra va chạm
+            for(let i = 0; i < 1000; i++) {
+                rx += dx;
+                ry += dy;
+                ctx.lineTo(rx, ry);
+
+                // Kiểm tra va chạm với Tường
+                if (rx >= 250 && rx <= 390 && ry >= 80 && ry <= 100) {
+                    if (!quantumTunnelActive) {
+                        break; // Bị tường chặn lại (Vật lý cổ điển)
+                    }
+                    // Nếu bật lượng tử, tia tiếp tục đi xuyên qua
+                }
+
+                // Kiểm tra chạm Mục tiêu
+                if (rx >= 300 && rx <= 340 && ry >= 40 && ry <= 80) {
+                    hitTarget = true;
+                    break; // Dừng tia laser lại
+                }
+
+                // Kiểm tra chạm Gương (Phản xạ ánh sáng)
+                let distToMirror = Math.hypot(rx - mx, ry - my);
+                if (distToMirror < mLen/2 && !reflected) {
+                    // Tính toán vector pháp tuyến của gương
+                    let nAngle = mirrorAngle - Math.PI/2;
+                    let nx = Math.cos(nAngle);
+                    let ny = Math.sin(nAngle);
+                    
+                    // Công thức phản xạ: R = V - 2(V.N)N
+                    let dot = dx * nx + dy * ny;
+                    
+                    // Phản xạ
+                    dx = dx - 2 * dot * nx;
+                    dy = dy - 2 * dot * ny;
+                    
+                    // Chuẩn hóa vector
+                    let mag = Math.hypot(dx, dy);
+                    dx /= mag; dy /= mag;
+                    
+                    reflected = true; // Đảm bảo chỉ phản xạ 1 lần
+                }
+            }
+            ctx.stroke();
+
+            // 6. Hiển thị thông báo Chiến thắng
+            if (hitTarget) {
+                ctx.fillStyle = '#10ac84';
+                ctx.font = 'bold 24px Arial';
+                ctx.fillText('WIN! Dữ liệu lượng tử đã truyền tới đích', 100, 350);
+            }
+
+            // Gọi lại hàm vẽ liên tục (Animation loop)
+            requestAnimationFrame(draw);
+        }
+
+        // Bắt đầu vòng lặp game
+        draw();
+    </script>
+</body>
+  </html>
+  
